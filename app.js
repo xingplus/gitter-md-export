@@ -44,6 +44,14 @@ var gitter = {
     this.fetch('/api/v1/user/' + user.id + '/rooms', token, function(err, rooms) {
       cb(err, rooms);
     });
+  },
+
+  fetchMessages: function(room, token, cb) {
+    // /v1/rooms/:roomId/chatMessages?limit=50
+
+    this.fetch('/api/v1/rooms/' + room + '/chatMessages?limit=100', token, function(err, messages) {
+      cb(err, messages);
+    });
   }
 };
 
@@ -126,6 +134,39 @@ app.get('/home', function(req, res) {
   });
 
 });
+
+app.get('/room/*', function(req, res) {
+  if (!req.user) return res.redirect('/');
+  console.log(req);
+
+  // Fetch user rooms using the Gitter API
+  gitter.fetchMessages(req.params[0], req.session.token, function(err, messages) {
+    if (err) return res.send(500);
+
+    var return_string = "";
+
+    var i;
+    for (i in messages) {
+      var msg = messages[i];
+      return_string += "---\n\n## " 
+                    + msg.fromUser.displayName
+                    + " *" + msg.sent + "*: \n\n"
+                    + msg.text + "\n\n";
+    }
+    res.set('Content-Type', 'text/x-markdown');
+
+    res.send(return_string);
+
+    // res.render('messages', {
+    //   user: req.user, 
+    //   token: req.session.token, 
+    //   clientId: clientId,
+    //   messages: messages
+    // });
+  });
+
+});
+
 
 app.listen(port);
 console.log('Demo app running at http://localhost:' + port);
