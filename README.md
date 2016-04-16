@@ -1,4 +1,6 @@
-# Gitter Demo App
+# Gitter MD export App
+
+A simple way to export the chat history of a room as markdown. Very crude as simple a quick hack based on the official [gitter-demo-app](https://github.com/gitterHQ/gitter-demo-app).
 
 ## HOWTO
 
