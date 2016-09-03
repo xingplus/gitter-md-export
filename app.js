@@ -5,6 +5,11 @@ var express         = require('express');
 var passport        = require('passport');
 var OAuth2Strategy  = require('passport-oauth2');
 var request         = require('request');
+var elasticsearch = require('elasticsearch');
+var esclient = new elasticsearch.Client({
+  host: 'eshost:9200',
+  log: 'trace'
+});
 
 var gitterHost    = process.env.HOST || 'https://gitter.im';
 var port          = process.env.PORT || 7000;
@@ -46,10 +51,14 @@ var gitter = {
     });
   },
 
-  fetchMessages: function(room, token, cb) {
+  fetchMessages: function(room, beforeId, token, cb) {
     // /v1/rooms/:roomId/chatMessages?limit=50
 
-    this.fetch('/api/v1/rooms/' + room + '/chatMessages?limit=100', token, function(err, messages) {
+	  var url = '/api/v1/rooms/' + room + '/chatMessages?limit=100';
+	  if (beforeId) {
+	  	url += '&beforeId=' + beforeId
+	  }
+    this.fetch(url, token, function(err, messages) {
       cb(err, messages);
     });
   }
@@ -135,24 +144,42 @@ app.get('/home', function(req, res) {
 
 });
 
-app.get('/room/*', function(req, res) {
+app.get('/room/*/*', function(req, res) {
   if (!req.user) return res.redirect('/');
   console.log(req);
 
   // Fetch user rooms using the Gitter API
-  gitter.fetchMessages(req.params[0], req.session.token, function(err, messages) {
+  gitter.fetchMessages(req.params[0], req.params[1], req.session.token, function(err, messages) {
     if (err) return res.send(500);
 
     var return_string = "";
 
     var i;
+	var bulk = [];
     for (i in messages) {
       var msg = messages[i];
+	  bulk.push({
+		  index: {
+			  _index: 'gitter_reactor',
+			  _type: 'chat_log',
+			  _id: msg.id
+		  }
+	  });
+	  bulk.push(msg);
       return_string += "---\n\n## " 
                     + msg.fromUser.displayName
                     + " *" + msg.sent + "*: \n\n"
+					+ msg.id + " \n\n"
                     + msg.text + "\n\n";
     }
+	esclient.bulk({
+		body: bulk
+	}, function(err, resp) {
+		console.log('err=');
+		console.log(err);
+		console.log('resp=');
+		console.log(resp);
+	})
     res.set('Content-Type', 'text/x-markdown');
 
     res.send(return_string);
